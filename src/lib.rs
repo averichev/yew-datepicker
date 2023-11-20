@@ -60,8 +60,8 @@ impl Component for Datepicker {
             context.send_message(DatepickerMessage::CurrentMonthChange(shift_months(date, -1)));
         });
         let prev = html! {
-                    <button {onclick} type="button">{"<"}</button>
-                };
+            <button {onclick} type="button">{"<"}</button>
+        };
 
         let context = ctx.link().clone();
         let onclick_next = Callback::from(move |_| {
