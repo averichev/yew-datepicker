@@ -1,0 +1,112 @@
+name: CI/CD
+on:
+  push:
+  pull_request:
+    types:
+      - opened
+  workflow_dispatch: # allow manual execution
+
+jobs:
+
+  check-repo:
+    name: Check git repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+
+  check-code-style:
+    name: Check code style
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+
+      - uses: Swatinem/rust-cache@v2 # use /rust/cargo caching
+
+      - name: Check the code style
+        run: cargo fmt --all -- --check
+
+  check-code:
+    name: Check rust code
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+
+      - uses: Swatinem/rust-cache@v2 # use /rust/cargo caching
+
+      - name: Verify code
+        run: cargo clippy
+
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+
+      - uses: Swatinem/rust-cache@v2 # use /rust/cargo caching
+
+      - name: Test code
+        run: cargo test --lib
+
+  release-artifacts:
+    name: Release artifacts
+    needs: [ test, check-code-style, check-code, check-repo ]
+    runs-on: ubuntu-latest
+    if: github.ref_name == 'master' # only release if the branch is master
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Create a new release based on semantic versioning
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18.x
+
+      - name: Install Dependencies
+        run: |
+          npm install -g \
+             semantic-release  \
+            @semantic-release/git  \
+            @semantic-release/gitlab  \
+            @semantic-release/changelog  \
+            @semantic-release/exec \
+            @semantic-release/commit-analyzer \
+            @semantic-release-cargo/semantic-release-cargo \
+            conventional-changelog-conventionalcommits            
+
+      - name: Generate Semantic Release Notes and Create Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+        run: npx semantic-release
