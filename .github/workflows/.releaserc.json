@@ -1,19 +1,26 @@
 {
-  "branch": "master",
+  "branches": ["master"],
   "plugins": [
     [
       "@semantic-release/commit-analyzer",
       {
-        "preset": "angular",
-        "releaseRules": [
-          {"breaking": true, "release": "minor"},
-          {"tag": "Breaking", "release": "minor"}
-        ]
+        "preset": "conventionalcommits"
       }
     ],
-    "@semantic-release/release-notes-generator",
+    [
+      "@semantic-release/release-notes-generator",
+      {
+        "preset": "conventionalcommits"
+      }
+    ],
     "@semantic-release/changelog",
-    "@semantic-release/github",
-    "@semantic-release-cargo/semantic-release-cargo"
+    "@semantic-release-cargo/semantic-release-cargo",
+    [
+      "@semantic-release/git",
+      {
+        "assets": ["CHANGELOG.md", "Cargo.toml"]
+      }
+    ],
+    "@semantic-release/github"
   ]
 }
