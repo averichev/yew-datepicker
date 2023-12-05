@@ -1,5 +1,5 @@
-use chrono::{Locale, Weekday};
 use chrono::{Datelike, NaiveDate};
+use chrono::{Locale, Weekday};
 use chronoutil::shift_months;
 use std::convert::TryFrom;
 use yew::{html, Callback, Component, Context, Html, Properties};
