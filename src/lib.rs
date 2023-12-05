@@ -1,5 +1,5 @@
-use chrono::Weekday;
-use chrono::{Datelike, Month, NaiveDate};
+use chrono::{Locale, Weekday};
+use chrono::{Datelike, NaiveDate};
 use chronoutil::shift_months;
 use std::convert::TryFrom;
 use yew::{html, Callback, Component, Context, Html, Properties};
@@ -103,14 +103,12 @@ impl Component for Datepicker {
             })
             .collect::<Html>();
 
-        let month_name = Month::try_from(self.current_date.month() as u8).unwrap();
-
         html! {
             <table>
                 <thead>
                     <tr>
                         <th colspan="7">
-                            {prev} {month_name.name()} {self.current_date.year()} {next}
+                            {prev} {self.current_date.format_localized("%B", Locale::ru_RU).to_string()} {self.current_date.year()} {next}
                         </th>
                     </tr>
                     <tr>
