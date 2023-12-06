@@ -1,4 +1,4 @@
-use chrono::{Datelike, NaiveDate};
+use chrono::{Datelike, Month, NaiveDate};
 use chrono::{Locale, Weekday};
 use chronoutil::shift_months;
 use std::convert::TryFrom;
@@ -102,13 +102,13 @@ impl Component for Datepicker {
                 }
             })
             .collect::<Html>();
-
+        let month = Month::try_from(self.current_date.month() as u8).unwrap();
         html! {
             <table>
                 <thead>
                     <tr>
                         <th colspan="7">
-                            {prev} {self.current_date.format_localized("%B", Locale::ru_RU).to_string()} {self.current_date.year()} {next}
+                            {prev} {self.month_to_string(month)} {self.current_date.year()} {next}
                         </th>
                     </tr>
                     <tr>
@@ -133,6 +133,22 @@ impl Datepicker {
             Weekday::Fri => "Пт",
             Weekday::Sat => "Сб",
             Weekday::Sun => "Вс",
+        }
+    }
+    fn month_to_string(&self, month: Month) -> &'static str {
+        match month {
+            Month::January => "Январь",
+            Month::February => "Февраль",
+            Month::March => "Март",
+            Month::April => "Апрель",
+            Month::May => "Май",
+            Month::June => "Июнь",
+            Month::July => "Июль",
+            Month::August => "Август",
+            Month::September => "Сентябрь",
+            Month::October => "Октябрь",
+            Month::November => "Ноябрь",
+            Month::December => "Декабрь",
         }
     }
 }
