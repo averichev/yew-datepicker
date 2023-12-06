@@ -1,16 +1,29 @@
-use chrono::{Datelike, Month, NaiveDate};
+use chrono::{Datelike, Duration, Month, NaiveDate, Utc};
 use chrono::{Locale, Weekday};
 use chronoutil::shift_months;
 use std::convert::TryFrom;
+use std::mem;
 use yew::{html, Callback, Component, Context, Html, Properties};
 
 pub struct Datepicker {
     current_date: NaiveDate,
+    locale: Locale,
 }
 
-#[derive(Default, Properties, PartialEq)]
+#[derive(Properties, PartialEq)]
 pub struct DatepickerProperties {
     pub on_select: Callback<NaiveDate>,
+    #[prop_or_default]
+    pub locale: Option<Locale>,
+}
+
+impl Default for DatepickerProperties {
+    fn default() -> Self {
+        DatepickerProperties {
+            on_select: Default::default(),
+            locale: Some(Locale::en_US),
+        }
+    }
 }
 
 pub enum DatepickerMessage {
@@ -22,12 +35,19 @@ impl Component for Datepicker {
     type Message = DatepickerMessage;
     type Properties = DatepickerProperties;
 
-    fn create(_ctx: &Context<Self>) -> Self {
+    fn create(ctx: &Context<Self>) -> Self {
         let current_date = chrono::offset::Local::now()
             .date_naive()
             .with_day0(0)
             .unwrap();
-        Datepicker { current_date }
+        let locale = match ctx.props().locale {
+            None => Locale::en_US,
+            Some(l) => l,
+        };
+        Datepicker {
+            current_date,
+            locale,
+        }
     }
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
@@ -42,13 +62,12 @@ impl Component for Datepicker {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let all_days_of_week: Vec<Weekday> =
-            (0..7).map(|i| Weekday::try_from(i).unwrap()).collect();
-        let columns = all_days_of_week
-            .iter()
-            .map(|n| {
+        let columns = self
+            .current_week()
+            .into_iter()
+            .map(|n: NaiveDate| {
                 html! {
-                   <th>{self.weekday_number_to_string(n)}</th>
+                   <th>{n.format_localized("%a", self.locale).to_string()}</th>
                 }
             })
             .collect::<Html>();
@@ -102,13 +121,13 @@ impl Component for Datepicker {
                 }
             })
             .collect::<Html>();
-        let month = Month::try_from(self.current_date.month() as u8).unwrap();
+
         html! {
             <table>
                 <thead>
                     <tr>
                         <th colspan="7">
-                            {prev} {self.month_to_string(month)} {self.current_date.year()} {next}
+                            {prev} {self.current_month_name()} {self.current_date.year()} {next}
                         </th>
                     </tr>
                     <tr>
@@ -124,18 +143,29 @@ impl Component for Datepicker {
 }
 
 impl Datepicker {
-    fn weekday_number_to_string(&self, weekday: &Weekday) -> &'static str {
-        match weekday {
-            Weekday::Mon => "Пн",
-            Weekday::Tue => "Вт",
-            Weekday::Wed => "Ср",
-            Weekday::Thu => "Чт",
-            Weekday::Fri => "Пт",
-            Weekday::Sat => "Сб",
-            Weekday::Sun => "Вс",
+    fn current_week(&self) -> Vec<NaiveDate> {
+        let current = Utc::now().date_naive();
+        let week = current.week(Weekday::Mon);
+        let first_day = week.first_day();
+        let last_day = week.last_day();
+        let mut result = Vec::new();
+        for day in NaiveDateRange(first_day, last_day) {
+            result.push(day);
+        }
+        result
+    }
+    fn current_month_name(&self) -> String{
+        match self.locale {
+            Locale::ru_RU => {
+                let month = Month::try_from(self.current_date.month() as u8).unwrap();
+                self.russian_month_name(month).to_string()
+            }
+            _ => {
+                self.current_date.format_localized("%B", self.locale).to_string()
+            }
         }
     }
-    fn month_to_string(&self, month: Month) -> &'static str {
+    fn russian_month_name(&self, month: Month) -> &'static str {
         match month {
             Month::January => "Январь",
             Month::February => "Февраль",
@@ -149,6 +179,20 @@ impl Datepicker {
             Month::October => "Октябрь",
             Month::November => "Ноябрь",
             Month::December => "Декабрь",
+        }
+    }
+}
+
+struct NaiveDateRange(NaiveDate, NaiveDate);
+
+impl Iterator for NaiveDateRange {
+    type Item = NaiveDate;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.0 <= self.1 {
+            let next = self.0 + Duration::days(1);
+            Some(mem::replace(&mut self.0, next))
+        } else {
+            None
         }
     }
 }
