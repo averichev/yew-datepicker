@@ -2,6 +2,7 @@
 ```toml
 # ...
 yew-datepicker = "0.2.0"
+chrono = "0.4.31"
 pure-rust-locales = "0.7.0"
 # ...
 ```

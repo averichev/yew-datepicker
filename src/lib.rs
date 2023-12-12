@@ -3,11 +3,17 @@ use chrono::{Locale, Weekday};
 use chronoutil::shift_months;
 use std::convert::TryFrom;
 use std::mem;
+use std::str::FromStr;
+use stylist::ast::Sheet;
+use stylist::Style;
+use yew::MouseEvent;
 use yew::{html, Callback, Component, Context, Html, Properties};
+use yew_template::template_html;
 
 pub struct Datepicker {
-    current_date: NaiveDate,
+    current_month: NaiveDate,
     locale: Locale,
+    selected_date: Option<NaiveDate>,
 }
 
 #[derive(Properties, PartialEq)]
@@ -28,7 +34,7 @@ impl Default for DatepickerProperties {
 
 pub enum DatepickerMessage {
     CurrentMonthChange(NaiveDate),
-    Select(u32),
+    Select(NaiveDate),
 }
 
 impl Component for Datepicker {
@@ -40,39 +46,40 @@ impl Component for Datepicker {
             .date_naive()
             .with_day0(0)
             .unwrap();
-        let locale = match ctx.props().locale {
-            None => Locale::en_US,
-            Some(l) => l,
-        };
+        let locale = ctx.props().locale.unwrap_or_else(|| Locale::en_US);
         Datepicker {
-            current_date,
+            current_month: current_date,
             locale,
+            selected_date: None,
         }
     }
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
-            DatepickerMessage::CurrentMonthChange(date) => self.current_date = date,
-            DatepickerMessage::Select(date) => {
-                let selected_date = self.current_date.with_day(date).unwrap();
-                let _ = &ctx.props().on_select.emit(selected_date);
+            DatepickerMessage::CurrentMonthChange(date) => self.current_month = date,
+            DatepickerMessage::Select(selected) => {
+                self.selected_date = Some(selected);
+                let _ = &ctx.props().on_select.emit(selected);
             }
         }
         true
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
+        const STYLE_FILE: &str = include_str!("styles.css");
+        let sheet = Sheet::from_str(STYLE_FILE).unwrap();
+        let style = Style::new(sheet).unwrap();
         let columns = self
             .current_week()
             .into_iter()
             .map(|n: NaiveDate| {
                 html! {
-                   <th>{n.format_localized("%a", self.locale).to_string()}</th>
+                   <div class="day">{n.format_localized("%a", self.locale).to_string()}</div>
                 }
             })
             .collect::<Html>();
 
-        let date = self.current_date.clone();
+        let date = self.current_month.clone();
         let context = ctx.link().clone();
         let onclick = Callback::from(move |_| {
             context.send_message(DatepickerMessage::CurrentMonthChange(shift_months(
@@ -80,7 +87,7 @@ impl Component for Datepicker {
             )));
         });
         let prev = html! {
-            <button {onclick} type="button">{"<"}</button>
+            <button class="btn" {onclick} type="button">{"<"}</button>
         };
 
         let context = ctx.link().clone();
@@ -88,10 +95,12 @@ impl Component for Datepicker {
             context.send_message(DatepickerMessage::CurrentMonthChange(shift_months(date, 1)));
         });
         let next = html! {
-            <button onclick={onclick_next} type="button">{">"}</button>
+            <button class="btn" onclick={onclick_next} type="button">{">"}</button>
         };
 
-        let calendarize = calendarize::calendarize_with_offset(self.current_date, 1);
+        let calendarize = calendarize::calendarize_with_offset(self.current_month, 1);
+        let selected_day = self.selected_date;
+        let current_month = self.current_month;
 
         let rows = calendarize
             .iter()
@@ -102,43 +111,59 @@ impl Component for Datepicker {
                     .cloned()
                     .map(|cl| {
                         let context = ctx.link().clone();
-                        let onclick = Callback::from(move |_| {
-                            context.send_message(DatepickerMessage::Select(cl));
-                        });
+                        let selected = current_month.with_day(cl);
+                        let onclick: Callback<MouseEvent> =
+                            Callback::from(move |event: MouseEvent| {
+                                event.prevent_default();
+                                match selected {
+                                    None => {}
+                                    Some(s) => {
+                                        context.send_message(DatepickerMessage::Select(s));
+                                    }
+                                }
+                            });
                         let mut number = String::new();
                         if cl > 0 {
                             number = cl.to_string();
                         }
+                        let mut day_class = String::from("day");
+                        match selected_day {
+                            None => {}
+                            Some(s) => match selected {
+                                None => {}
+                                Some(sl) => {
+                                    if s == sl {
+                                        day_class.push_str(" day--selected");
+                                    }
+                                }
+                            },
+                        }
+
                         html! {
-                            <td {onclick}>{number}</td>
+                            <a class={day_class} {onclick} href="#">{number}</a>
                         }
                     })
                     .collect::<Html>();
                 html! {
-                    <tr>
                     {cells}
-                    </tr>
                 }
             })
             .collect::<Html>();
-
-        html! {
-            <table>
-                <thead>
-                    <tr>
-                        <th colspan="7">
-                            {prev} {self.current_month_name()} {self.current_date.year()} {next}
-                        </th>
-                    </tr>
-                    <tr>
-                        {columns}
-                    </tr>
-                </thead>
-                <tbody>
-                    {rows}
-                </tbody>
-            </table>
-        }
+        let class = style.get_class_name().to_string();
+        let header = format!(
+            "{} {}",
+            self.current_month_name(),
+            self.current_month.year()
+        );
+        template_html!(
+            "src/templates/default.html",
+            prev = { prev },
+            next = { next },
+            columns = { columns },
+            rows = { rows },
+            class = { class },
+            header = { header }
+        )
     }
 }
 
@@ -154,15 +179,16 @@ impl Datepicker {
         }
         result
     }
-    fn current_month_name(&self) -> String{
+    fn current_month_name(&self) -> String {
         match self.locale {
             Locale::ru_RU => {
-                let month = Month::try_from(self.current_date.month() as u8).unwrap();
+                let month = Month::try_from(self.current_month.month() as u8).unwrap();
                 self.russian_month_name(month).to_string()
             }
-            _ => {
-                self.current_date.format_localized("%B", self.locale).to_string()
-            }
+            _ => self
+                .current_month
+                .format_localized("%B", self.locale)
+                .to_string(),
         }
     }
     fn russian_month_name(&self, month: Month) -> &'static str {
