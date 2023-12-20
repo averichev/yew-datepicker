@@ -1,8 +1,10 @@
-use chrono::{Datelike, Duration, Month, NaiveDate, Utc};
+use chrono::{Datelike, Duration, Month, Months, NaiveDate, Utc};
 use chrono::{Locale, Weekday};
 use chronoutil::shift_months;
+
 use std::convert::TryFrom;
 use std::mem;
+
 use std::str::FromStr;
 use stylist::ast::Sheet;
 use stylist::Style;
@@ -59,7 +61,15 @@ impl Component for Datepicker {
             DatepickerMessage::CurrentMonthChange(date) => self.current_month = date,
             DatepickerMessage::Select(selected) => {
                 self.selected_date = Some(selected);
-                let _ = &ctx.props().on_select.emit(selected);
+                let _ = ctx.props().on_select.emit(selected);
+                let in_current_mont_selected = selected.year() == self.current_month.year()
+                    && selected.month() == self.current_month.month();
+                if !in_current_mont_selected {
+                    ctx.link()
+                        .send_message(DatepickerMessage::CurrentMonthChange(
+                            selected.with_day0(0).unwrap(),
+                        ))
+                }
             }
         }
         true
@@ -69,7 +79,7 @@ impl Component for Datepicker {
         const STYLE_FILE: &str = include_str!("styles.css");
         let sheet = Sheet::from_str(STYLE_FILE).unwrap();
         let style = Style::new(sheet).unwrap();
-        let columns = self
+        let days_names = self
             .current_week()
             .into_iter()
             .map(|n: NaiveDate| {
@@ -78,6 +88,12 @@ impl Component for Datepicker {
                 }
             })
             .collect::<Html>();
+        let columns = html! {
+            <>
+            <div class="day"></div>
+            {days_names}
+            </>
+        };
 
         let date = self.current_month.clone();
         let context = ctx.link().clone();
@@ -102,34 +118,48 @@ impl Component for Datepicker {
         let selected_day = self.selected_date;
         let current_month = self.current_month;
 
+        let previous_month = self
+            .current_month
+            .checked_sub_months(Months::new(1))
+            .unwrap();
+
+        let prev_month = calendarize::calendarize_with_offset(previous_month, 1);
+        let prev_month_last_week = prev_month.last().unwrap();
+
         let rows = calendarize
             .iter()
             .cloned()
-            .map(|n| {
+            .enumerate()
+            .map(|(week_index, n)| {
                 let cells = n
                     .iter()
                     .cloned()
-                    .map(|cl| {
+                    .enumerate()
+                    .map(|(day_of_month_index, cl)| {
+                        let mut day_class = String::from("day");
                         let context = ctx.link().clone();
-                        let selected = current_month.with_day(cl);
-                        let onclick: Callback<MouseEvent> =
-                            Callback::from(move |event: MouseEvent| {
-                                event.prevent_default();
-                                match selected {
-                                    None => {}
-                                    Some(s) => {
-                                        context.send_message(DatepickerMessage::Select(s));
-                                    }
-                                }
-                            });
-                        let mut number = String::new();
+                        let current_iter_date: Option<NaiveDate>;
+
+                        let number: String;
                         if cl > 0 {
                             number = cl.to_string();
+                            current_iter_date = current_month.with_day(cl);
+                        } else {
+                            if week_index == 0 {
+                                let prev_month_last_week_day =
+                                    prev_month_last_week.get(day_of_month_index).unwrap();
+                                number = prev_month_last_week_day.to_string();
+                                day_class.push_str(" day--prev-month");
+                                current_iter_date =
+                                    previous_month.with_day(*prev_month_last_week_day);
+                            } else {
+                                number = String::new();
+                                current_iter_date = None;
+                            }
                         }
-                        let mut day_class = String::from("day");
                         match selected_day {
                             None => {}
-                            Some(s) => match selected {
+                            Some(s) => match current_iter_date {
                                 None => {}
                                 Some(sl) => {
                                     if s == sl {
@@ -138,14 +168,26 @@ impl Component for Datepicker {
                                 }
                             },
                         }
-
+                        let onclick: Callback<MouseEvent> =
+                            Callback::from(move |event: MouseEvent| {
+                                event.prevent_default();
+                                match current_iter_date {
+                                    None => {}
+                                    Some(s) => {
+                                        context.send_message(DatepickerMessage::Select(s));
+                                    }
+                                }
+                            });
                         html! {
                             <a class={day_class} {onclick} href="#">{number}</a>
                         }
                     })
                     .collect::<Html>();
                 html! {
+                    <>
+                    <div>{week_index + 1}</div>
                     {cells}
+                    </>
                 }
             })
             .collect::<Html>();

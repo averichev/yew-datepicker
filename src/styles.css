@@ -5,7 +5,7 @@
 
 .days {
     display: grid;
-    grid-template-columns:repeat(7, 1fr);
+    grid-template-columns:repeat(8, 1fr);
     box-sizing: border-box;
 }
 
@@ -22,6 +22,10 @@
 
 .days--month .day:hover {
     background-color: #f0f0f0;
+}
+
+.day--prev-month{
+    opacity: 0.4;
 }
 
 .days--month .day.day--selected,
