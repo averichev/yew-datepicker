@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4](https://github.com/averichev/yew-datepicker/compare/v0.2.3...v0.2.4) - 2023-12-21
+
+### Added
+- Show next month days
+
 ## [0.2.3](https://github.com/averichev/yew-datepicker/compare/v0.2.2...v0.2.3) - 2023-12-20
 
 ### Added
