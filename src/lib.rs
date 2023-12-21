@@ -126,11 +126,23 @@ impl Component for Datepicker {
         let prev_month = calendarize::calendarize_with_offset(previous_month, 1);
         let prev_month_last_week = prev_month.last().unwrap();
 
+        let next_month = self
+            .current_month
+            .checked_add_months(Months::new(1))
+            .unwrap();
+        let next_month_calendarize = calendarize::calendarize_with_offset(next_month, 1);
+        let next_month_first_week = next_month_calendarize.first().unwrap();
+
+        let weeks_number = calendarize.len();
+
         let rows = calendarize
             .iter()
             .cloned()
             .enumerate()
             .map(|(week_index, n)| {
+                let week_number = week_index + 1;
+                let is_first_week = week_index == 0;
+                let is_last_week = weeks_number == week_number;
                 let cells = n
                     .iter()
                     .cloned()
@@ -145,16 +157,24 @@ impl Component for Datepicker {
                             number = cl.to_string();
                             current_iter_date = current_month.with_day(cl);
                         } else {
-                            if week_index == 0 {
+                            if is_first_week {
                                 let prev_month_last_week_day =
                                     prev_month_last_week.get(day_of_month_index).unwrap();
                                 number = prev_month_last_week_day.to_string();
-                                day_class.push_str(" day--prev-month");
+                                day_class.push_str(" day--nc-month");
                                 current_iter_date =
                                     previous_month.with_day(*prev_month_last_week_day);
                             } else {
-                                number = String::new();
-                                current_iter_date = None;
+                                if is_last_week {
+                                    let next_month_day =
+                                        next_month_first_week.get(day_of_month_index).unwrap();
+                                    number = next_month_day.to_string();
+                                    day_class.push_str(" day--nc-month");
+                                    current_iter_date = next_month.with_day(*next_month_day);
+                                } else {
+                                    number = String::new();
+                                    current_iter_date = None;
+                                }
                             }
                         }
                         match selected_day {
@@ -185,7 +205,7 @@ impl Component for Datepicker {
                     .collect::<Html>();
                 html! {
                     <>
-                    <div>{week_index + 1}</div>
+                    <div>{week_number}</div>
                     {cells}
                     </>
                 }
